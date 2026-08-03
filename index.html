@@ -207,15 +207,35 @@ button.ghost{background:#fff}
   </div>
 </div>
 </div>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="questions-data.js"></script>
+<script>
+// 异步加载 Supabase SDK，加载失败不影响核心功能
+(function(){
+  var s=document.createElement('script');
+  s.src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js";
+  s.onload=function(){window.__sbReady=true;var fn=window.__sbInit;if(fn)fn();};
+  s.onerror=function(){console.warn("Supabase SDK 加载失败，云端同步不可用");window.__sbReady=false;var fn=window.__sbInit;if(fn)fn();};
+  document.head.appendChild(s);
+})();
+</script>
 <script>
 (function(){
 "use strict";
 // —— Supabase 配置 ——
 const SUPABASE_URL="https://itnymawfpbuhmildszyp.supabase.co";
 const SUPABASE_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml0bnltYXdmcGJ1aG1pbGRzenlwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU3NjE0NDYsImV4cCI6MjEwMTMzNzQ0Nn0.2bAaOWnP41sYG59GK8yMGR28x73CkBnkVmEfP9y62hI";
-const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+let sb=null;
+window.__sbInit=function(){
+  try{
+    if(window.__sbReady&&window.supabase){
+      sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+      console.log("Supabase 已连接，云端同步可用");
+      if(currentUid)scheduleSync();
+    }else{
+      console.warn("Supabase SDK 不可用，仅使用本地存储");
+    }
+  }catch(e){console.error("Supabase 初始化失败:",e);}
+};
 const ADMIN_PWD="admin@2026";
 const CLOUD_SYNC_DELAY=2000;
 
@@ -328,6 +348,7 @@ let adminSortDesc=true;
 let adminFilter="";
 
 async function loadAdminData(){
+  if(!sb){toast("⚠️ 云端不可用（SDK 未加载），管理员面板需要网络连接");return;}
   dom.adminSyncDot.className="sync-indicator syncing";
   const{data,error}=await sb.from("user_progress").select("*").order("updated_at",{ascending:false}).limit(500);
   if(error){toast("加载失败："+error.message);dom.adminSyncDot.className="sync-indicator error";return;}
@@ -366,6 +387,7 @@ function renderAdminTable(){
   }).join("");
 }
 async function deleteUserData(uid){
+  if(!sb){toast("云端不可用");return;}
   if(!confirm("确认删除 "+uid+" 的全部云端进度？"))return;
   const{error}=await sb.from("user_progress").delete().eq("user_id",uid);
   if(error){toast("删除失败："+error.message);return;}
