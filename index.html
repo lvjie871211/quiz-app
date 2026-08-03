@@ -319,7 +319,7 @@ function setSyncDot(state){
   dom.syncDot.className="sync-indicator "+state;
 }
 function scheduleSync(){
-  if(!currentUid||!sb){return;}
+  if(!currentUid){return;}
   if(syncTimer)clearTimeout(syncTimer);
   setSyncDot("syncing");
   syncTimer=setTimeout(async()=>{
@@ -329,19 +329,27 @@ function scheduleSync(){
       const okC=Object.keys(r.ok||{}).filter(k=>r.ok[k]>0).length;
       const attC=Object.keys(r.attempts||{}).length;
       const badC=wIds.length;
-      const{error}=await sb.from("user_progress").upsert({
-        user_id:currentUid,
-        dept_name:DEPTS[deptIdx].name,
-        total_questions:modeTotal,
-        answered_count:attC,
-        correct_count:okC,
-        wrong_count:badC,
-        wrong_question_ids:JSON.stringify(wIds),
-        mode:mode,
-        last_active:new Date().toISOString()
+      const res=await fetch(SUPABASE_URL+"/rest/v1/user_progress",{
+        method:"POST",
+        headers:{
+          "apikey":SUPABASE_KEY,
+          "Authorization":"Bearer "+SUPABASE_KEY,
+          "Content-Type":"application/json",
+          "Prefer":"resolution=merge-duplicates"
+        },
+        body:JSON.stringify({
+          user_id:currentUid,
+          dept_name:DEPTS[deptIdx].name,
+          total_questions:modeTotal,
+          answered_count:attC,
+          correct_count:okC,
+          wrong_count:badC,
+          wrong_question_ids:JSON.stringify(wIds),
+          mode:mode,
+          last_active:new Date().toISOString()
+        })
       });
-      if(error){console.error("Sync error:",error);setSyncDot("error");}
-      else setSyncDot("synced");
+      if(res.ok)setSyncDot("synced");else{console.error("Sync HTTP",res.status);setSyncDot("error");}
     }catch(e){console.error("Sync exception:",e);setSyncDot("error");}
   },CLOUD_SYNC_DELAY);
 }
@@ -353,13 +361,17 @@ let adminSortDesc=true;
 let adminFilter="";
 
 async function loadAdminData(){
-  if(!sb){toast("⚠️ 云端不可用（SDK 未加载），管理员面板需要网络连接");return;}
   dom.adminSyncDot.className="sync-indicator syncing";
-  const{data,error}=await sb.from("user_progress").select("*").order("updated_at",{ascending:false}).limit(500);
-  if(error){toast("加载失败："+error.message);dom.adminSyncDot.className="sync-indicator error";return;}
-  adminData=(data||[]).map(r=>({...r,accuracy:r.answered_count>0?Math.round(r.correct_count/r.answered_count*100):0}));
-  dom.adminSyncDot.className="sync-indicator synced";
-  renderAdminTable();
+  try{
+    const res=await fetch(SUPABASE_URL+"/rest/v1/user_progress?select=*&order=updated_at.desc&limit=500",{
+      headers:{"apikey":SUPABASE_KEY,"Authorization":"Bearer "+SUPABASE_KEY}
+    });
+    if(!res.ok){toast("加载失败："+res.status);dom.adminSyncDot.className="sync-indicator error";return;}
+    const data=await res.json();
+    adminData=(data||[]).map(r=>({...r,accuracy:r.answered_count>0?Math.round(r.correct_count/r.answered_count*100):0}));
+    dom.adminSyncDot.className="sync-indicator synced";
+    renderAdminTable();
+  }catch(e){toast("加载失败："+e.message);dom.adminSyncDot.className="sync-indicator error";}
 }
 function renderAdminTable(){
   let rows=adminData;
@@ -392,12 +404,16 @@ function renderAdminTable(){
   }).join("");
 }
 async function deleteUserData(uid){
-  if(!sb){toast("云端不可用");return;}
   if(!confirm("确认删除 "+uid+" 的全部云端进度？"))return;
-  const{error}=await sb.from("user_progress").delete().eq("user_id",uid);
-  if(error){toast("删除失败："+error.message);return;}
-  toast("✅ 已删除 "+uid+" 的数据");
-  loadAdminData();
+  try{
+    const res=await fetch(SUPABASE_URL+"/rest/v1/user_progress?user_id=eq."+encodeURIComponent(uid),{
+      method:"DELETE",
+      headers:{"apikey":SUPABASE_KEY,"Authorization":"Bearer "+SUPABASE_KEY}
+    });
+    if(!res.ok){toast("删除失败："+res.status);return;}
+    toast("✅ 已删除 "+uid+" 的数据");
+    loadAdminData();
+  }catch(e){toast("删除失败："+e.message);}
 }
 function showAdminPanel(){
   dom.adminPanel.classList.add("show");
