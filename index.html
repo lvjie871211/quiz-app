@@ -222,6 +222,10 @@ button.ghost{background:#fff}
 <script>
 (function(){
 "use strict";
+// —— 存储兜底（必须在用户ID代码之前初始化）——
+var _mem={};
+function lsSet(k,v){try{localStorage.setItem(k,v);}catch(e){_mem[k]=v;}}
+function lsGet(k){try{var v=localStorage.getItem(k);return v!==null?v:(_mem[k]||null);}catch(e){return _mem[k]||null;}}
 // —— Supabase 配置 ——
 const SUPABASE_URL="https://itnymawfpbuhmildszyp.supabase.co";
 const SUPABASE_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml0bnltYXdmcGJ1aG1pbGRzenlwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU3NjE0NDYsImV4cCI6MjEwMTMzNzQ0Nn0.2bAaOWnP41sYG59GK8yMGR28x73CkBnkVmEfP9y62hI";
@@ -450,12 +454,9 @@ dom.btnAdminExport.addEventListener("click",()=>{
   toast("📥 已导出 CSV");
 });
 
-// ==================== 以下为原有应用逻辑（保持不变）====================
+// —— 以下为原有应用逻辑 ——
 const DEFAULT_DEPT="IT科";
 const QMAP={};QUESTIONS.forEach(q=>QMAP[q.id]=q);
-var _mem={};
-function lsSet(k,v){try{localStorage.setItem(k,v);}catch(e){_mem[k]=v;}}
-function lsGet(k){try{const v=localStorage.getItem(k);return v!==null?v:(_mem[k]||null);}catch(e){return _mem[k]||null;}}
 var advTimer=null;
 function scheduleAdvance(fn){if(advTimer)clearTimeout(advTimer);advTimer=setTimeout(function(){advTimer=null;fn();},AUTO_ADVANCE_DELAY);}
 function cancelAdvance(){if(advTimer){clearTimeout(advTimer);advTimer=null;}}
